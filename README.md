@@ -41,9 +41,13 @@ docker compose run --rm api alembic stamp head
 docker compose run --rm api alembic revision --autogenerate -m "変更内容"
 ```
 
-- ベースライン `0001_baseline` は既存 `game` テーブル(PK・CHECK 制約含む)に対応する
-- 既存の共有 DB は `alembic stamp head` 済み(`alembic_version = 0001_baseline`)。stamp はテーブル/データを再作成せずリビジョンのみ記録する
+#### リビジョン
+- `0001_baseline` — 既存 `game` テーブル(PK・CHECK 制約含む)。既存の共有 DB は当初 `alembic stamp head` で整合済み(stamp はテーブル/データを再作成せずリビジョンのみ記録する)
+- `0002_price_history` — 価格推移を残す `price_history` テーブル(FK `game.id` の `ON DELETE CASCADE`、`price >= 0` の CHECK、`game_id` の index)
+
+補足:
 - `DATABASE_URL` にパスワードを URL エンコードして含める場合、`%` は `env.py` 側で `%%` にエスケープして扱う(`.env` に書く値自体は通常表記でよい)
+- 当面は起動時 `init_db()`(create_all)と Alembic を併存させる。両者は制約名が異なりうるため、正となるスキーマは Alembic のリビジョンとする
 
 ## ステータス
 現在 Issue #1(プロジェクト基盤)を構築中。
