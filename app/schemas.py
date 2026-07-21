@@ -68,3 +68,24 @@ class Summary(BaseModel):
 	total_pile_loss: int
 	total_price_diff_loss: int
 	total_loss: int
+
+
+class SteamSearchItem(BaseModel):
+	"""Steam 検索候補（正規化後）"""
+
+	appid: int
+	name: str
+	tiny_image: str | None = None
+	price: int | None = None  # 現在価格（円）。取得できない場合は None
+
+
+class SteamAppDetail(BaseModel):
+	"""Steam アプリ詳細（正規化後）"""
+
+	appid: int
+	name: str
+	release_date: str | None = None  # 発売日（Steam の表示文字列のまま）
+	current_price: int | None = None  # 現在価格（円）
+	header_image: str | None = None
+	short_description: str | None = None
+	genres: list[str] = Field(default_factory=list)
