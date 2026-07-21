@@ -52,6 +52,9 @@ const MIN_QUERY_LEN = 2
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 // 候補選択でタイトルを書き換える際、再検索を走らせないためのフラグ
 let suppressSearch = false
+// 手入力のたびに進める世代番号。非同期の検索・詳細取得は、await 後にこの値が
+// 進んでいれば「古い結果」とみなして破棄し、新しい入力状態を上書きしないようにする。
+let inputGen = 0
 
 // タイトル入力の変化を監視し、デバウンスして Steam を検索する
 watch(
@@ -61,7 +64,8 @@ watch(
 			suppressSearch = false
 			return
 		}
-		// 手入力で変わったら前回の Steam 紐付けは無効化する（古い appid の送信を防ぐ）
+		// 手入力で世代を進め、前回の Steam 紐付けは無効化する（古い appid の送信を防ぐ）
+		inputGen += 1
 		form.steam_appid = null
 		releaseDate.value = null
 		headerImage.value = null
@@ -71,16 +75,23 @@ watch(
 			suggestions.value = []
 			return
 		}
-		debounceTimer = setTimeout(() => void runSearch(q), SEARCH_DELAY_MS)
+		const gen = inputGen
+		debounceTimer = setTimeout(() => void runSearch(q, gen), SEARCH_DELAY_MS)
 	},
 )
 
-async function runSearch(q: string): Promise<void> {
+async function runSearch(q: string, gen: number): Promise<void> {
 	searching.value = true
 	try {
-		suggestions.value = await searchSteam(q)
+		const items = await searchSteam(q)
+		if (gen !== inputGen) {
+			return // 手入力が進んでいる：古いレスポンスなので破棄
+		}
+		suggestions.value = items
 	} catch {
-		suggestions.value = []
+		if (gen === inputGen) {
+			suggestions.value = []
+		}
 	} finally {
 		searching.value = false
 	}
@@ -88,9 +99,13 @@ async function runSearch(q: string): Promise<void> {
 
 // 候補を選択：詳細を取得してタイトル・現在価格・steam_appid を自動反映する
 async function onSelect(item: SteamSearchItem): Promise<void> {
+	const gen = inputGen
 	suggestions.value = []
 	try {
 		const detail = await fetchSteamApp(item.appid)
+		if (gen !== inputGen) {
+			return // 取得中に手入力された：古い詳細で上書きしない
+		}
 		suppressSearch = true
 		form.title = detail.name
 		form.steam_appid = detail.appid
@@ -100,7 +115,9 @@ async function onSelect(item: SteamSearchItem): Promise<void> {
 		releaseDate.value = detail.release_date
 		headerImage.value = detail.header_image
 	} catch {
-		error.value = 'Steam 詳細の取得に失敗しました'
+		if (gen === inputGen) {
+			error.value = 'Steam 詳細の取得に失敗しました'
+		}
 	}
 }
 
@@ -116,6 +133,9 @@ function toNumberOrNull(value: unknown): number | null {
 }
 
 async function submit(): Promise<void> {
+	if (submitting.value) {
+		return // 送信中の多重送信を防ぐ（Enter 連打・プログラム的 submit 対策）
+	}
 	error.value = ''
 	const purchase = toNumberOrNull(form.purchase_price)
 	const current = toNumberOrNull(form.current_price)
