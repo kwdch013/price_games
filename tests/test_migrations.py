@@ -16,6 +16,7 @@ import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect
 from sqlmodel import Session, SQLModel, select
 
@@ -104,7 +105,8 @@ def test_stampは既存テーブルとデータを破壊しない(
 		session.commit()
 
 	# stamp はテーブルを再作成せず、リビジョンだけを記録する
-	command.stamp(_alembic_config(monkeypatch, url), "head")
+	cfg = _alembic_config(monkeypatch, url)
+	command.stamp(cfg, "head")
 
 	inspector = inspect(engine)
 	assert "game" in inspector.get_table_names()
@@ -115,7 +117,8 @@ def test_stampは既存テーブルとデータを破壊しない(
 		assert len(rows) == 1
 		assert rows[0].title == "既存データ"
 
-	# alembic_version にベースラインが記録される
+	# alembic_version に最新（head）リビジョンが記録される
+	head = ScriptDirectory.from_config(cfg).get_current_head()
 	with engine.connect() as conn:
 		version = conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar()
-	assert version == "0001_baseline"
+	assert version == head

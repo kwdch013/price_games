@@ -38,3 +38,20 @@ class Game(SQLModel, table=True):
 	# Steam 連携用（後の Issue で使用）
 	steam_appid: int | None = Field(default=None)
 	created_at: datetime = Field(default_factory=_now)
+
+
+class PriceHistory(SQLModel, table=True):
+	"""ゲーム1件の価格推移。current_price のスナップショットを時系列で残す。"""
+
+	__tablename__ = "price_history"
+
+	# 直挿入経路でも負値を弾く DB 制約
+	__table_args__ = (
+		CheckConstraint("price >= 0", name="ck_price_history_price_nonneg"),
+	)
+
+	id: int | None = Field(default=None, primary_key=True)
+	# 親 game 削除時は履歴も CASCADE で消す（DB 側で整合を保つ）
+	game_id: int = Field(foreign_key="game.id", ondelete="CASCADE", index=True)
+	price: int
+	captured_at: datetime = Field(default_factory=_now)
