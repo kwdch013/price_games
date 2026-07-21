@@ -1,6 +1,13 @@
 // API クライアントの単体テスト（fetch をモック）
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createGame, deleteGame, fetchSummary, formatYen } from './client'
+import {
+	createGame,
+	deleteGame,
+	fetchSteamApp,
+	fetchSummary,
+	formatYen,
+	searchSteam,
+} from './client'
 
 afterEach(() => {
 	vi.restoreAllMocks()
@@ -38,6 +45,43 @@ describe('request（共通処理）', () => {
 			progress: 0,
 		})
 		expect(game.id).toBe(1)
+	})
+})
+
+describe('Steam メタデータ取得', () => {
+	it('searchSteam は /steam/search?q= を叩き候補一覧を返す', async () => {
+		const items = [{ appid: 1245620, name: 'ELDEN RING', tiny_image: null, price: 8800 }]
+		const f = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve(items),
+		})
+		vi.stubGlobal('fetch', f)
+
+		await expect(searchSteam('elden')).resolves.toEqual(items)
+		// q はエンコードされて渡る
+		expect(f.mock.calls[0][0]).toContain('/steam/search?q=elden')
+	})
+
+	it('fetchSteamApp は /steam/apps/{appid} を叩き詳細を返す', async () => {
+		const detail = {
+			appid: 1245620,
+			name: 'ELDEN RING',
+			release_date: '2022年2月25日',
+			current_price: 8800,
+			header_image: 'https://example.com/h.jpg',
+			short_description: '死は運命',
+			genres: ['アクション', 'RPG'],
+		}
+		const f = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve(detail),
+		})
+		vi.stubGlobal('fetch', f)
+
+		await expect(fetchSteamApp(1245620)).resolves.toEqual(detail)
+		expect(f.mock.calls[0][0]).toContain('/steam/apps/1245620')
 	})
 })
 
