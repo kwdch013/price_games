@@ -9,12 +9,16 @@ from __future__ import annotations
 
 
 def pile_loss(purchase_price: int, progress: int) -> int:
-	"""積みゲー損失 = 購入価格 × (1 − 進行度/100) を四捨五入した整数（円）"""
+	"""積みゲー損失 = 購入価格 × (1 − 進行度/100) を四捨五入した整数（円）
+
+	浮動小数の丸め（round の銀行丸め）を避け、整数演算で HALF_UP 相当にする。
+	"""
 	if purchase_price < 0:
 		raise ValueError("購入価格は 0 以上である必要があります")
 	if not 0 <= progress <= 100:
 		raise ValueError("進行度は 0〜100 の範囲である必要があります")
-	return round(purchase_price * (1 - progress / 100))
+	# purchase_price × (100 − progress) / 100 を +50 して切り捨て（0.5 は切り上げ）
+	return (purchase_price * (100 - progress) + 50) // 100
 
 
 def price_diff_loss(purchase_price: int, current_price: int | None) -> int | None:

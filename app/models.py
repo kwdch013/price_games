@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from sqlalchemy import CheckConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -14,6 +15,16 @@ def _now() -> datetime:
 
 class Game(SQLModel, table=True):
 	"""購入したゲーム1件。金額は円（整数）で保持する。"""
+
+	# API 層(Pydantic)に加え、直挿入経路でも不正値を弾くための DB 制約
+	__table_args__ = (
+		CheckConstraint("purchase_price >= 0", name="ck_game_purchase_price_nonneg"),
+		CheckConstraint(
+			"current_price IS NULL OR current_price >= 0",
+			name="ck_game_current_price_nonneg",
+		),
+		CheckConstraint("progress BETWEEN 0 AND 100", name="ck_game_progress_range"),
+	)
 
 	id: int | None = Field(default=None, primary_key=True)
 	title: str

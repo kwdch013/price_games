@@ -21,6 +21,12 @@ class TestPileLoss:
 		# 5000 × 0.67 = 3350
 		assert pile_loss(5000, 33) == 3350
 
+	def test_ちょうど半端は切り上げHALF_UP(self) -> None:
+		# 1 × 0.5 = 0.5 → 1（銀行丸めなら 0 になるケース）
+		assert pile_loss(1, 50) == 1
+		# 3 × 0.5 = 1.5 → 2
+		assert pile_loss(3, 50) == 2
+
 	def test_進行度が範囲外なら例外(self) -> None:
 		with pytest.raises(ValueError):
 			pile_loss(5000, 101)

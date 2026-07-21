@@ -1,21 +1,25 @@
 """実 DB（PostgreSQL）への結合テスト
 
-DATABASE_URL が postgresql を指すとき（CI の postgres サービス / コンテナ経由）のみ実行し、
-それ以外（ローカルの SQLite フォールバック等）では自動スキップする。
+実際に DB へ接続できるとき（CI の postgres サービス / コンテナ経由）のみ実行し、
+接続できない環境（DB 未起動・認証不可など）では自動スキップする。
 テストデータは登録→検証→削除まで行い、共有 DB を汚さない。
 """
 
 import pytest
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlmodel import Session
 
-from app.db import DATABASE_URL, engine, init_db
+from app.db import engine, init_db
 from app.models import Game
 
 pytestmark = pytest.mark.integration
 
-# 実 Postgres に繋がらない環境ではスキップ
-if not DATABASE_URL.startswith("postgresql"):
-	pytest.skip("PostgreSQL 未接続のためスキップ", allow_module_level=True)
+# スキームだけでなく実接続を試み、繋がらなければスキップする
+try:
+	with engine.connect():
+		pass
+except SQLAlchemyError as exc:  # 接続不可・認証失敗など
+	pytest.skip(f"DB へ接続できないためスキップ: {exc}", allow_module_level=True)
 
 
 def test_登録と取得のラウンドトリップ() -> None:
@@ -39,3 +43,13 @@ def test_登録と取得のラウンドトリップ() -> None:
 			if obj is not None:
 				session.delete(obj)
 				session.commit()
+
+
+def test_不正な進行度は直挿入でもDB制約で弾かれる() -> None:
+	init_db()
+	with Session(engine) as session:
+		# progress=999 は CheckConstraint 違反
+		session.add(Game(title="不正データ", medium="PC(Steam)", purchase_price=1000, progress=999))
+		with pytest.raises(IntegrityError):
+			session.commit()
+		session.rollback()
