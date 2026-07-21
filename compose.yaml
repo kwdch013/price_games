@@ -18,6 +18,20 @@ services:
     # 開発用に reload を有効化して起動を上書きする
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
+  # 開発用フロントエンド（Vite dev server）。本番はビルド成果物を配信する想定。
+  frontend:
+    image: node:24-slim
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    environment:
+      # ブラウザ（ホスト）から API へは 8010 でアクセスする
+      - VITE_API_BASE=http://localhost:8010
+    # 初回は依存を入れてから dev server を起動する
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
 networks:
   database:
     # 既存の共有ネットワーク（postgres_db が所属）を外部参照する
