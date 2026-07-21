@@ -25,6 +25,26 @@ export interface GameCreate {
 	current_price: number | null
 	progress: number
 	note?: string
+	steam_appid?: number | null
+}
+
+// Steam 検索候補（バックエンドの SteamSearchItem と一致）
+export interface SteamSearchItem {
+	appid: number
+	name: string
+	tiny_image: string | null
+	price: number | null
+}
+
+// Steam アプリ詳細（バックエンドの SteamAppDetail と一致）
+export interface SteamAppDetail {
+	appid: number
+	name: string
+	release_date: string | null
+	current_price: number | null
+	header_image: string | null
+	short_description: string | null
+	genres: string[]
 }
 
 export interface Game {
@@ -85,6 +105,16 @@ export async function deleteGame(id: number): Promise<void> {
 
 export async function fetchSummary(): Promise<Summary> {
 	return request<Summary>('/games/summary')
+}
+
+// タイトル文字列から Steam 検索候補を取得する
+export async function searchSteam(q: string): Promise<SteamSearchItem[]> {
+	return request<SteamSearchItem[]>(`/steam/search?q=${encodeURIComponent(q)}`)
+}
+
+// appid から Steam アプリ詳細（発売日・現在価格・画像など）を取得する
+export async function fetchSteamApp(appid: number): Promise<SteamAppDetail> {
+	return request<SteamAppDetail>(`/steam/apps/${appid}`)
 }
 
 // 円表示のユーティリティ
