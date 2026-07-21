@@ -1,0 +1,26 @@
+services:
+  api:
+    build: .
+    ports:
+      # 8000 は既存の別アプリ（dq10-api）が使用中のため 8010 を使う
+      - "8010:8000"
+    volumes:
+      # 開発中はソースをマウントしてホットリロードを効かせる
+      - ./app:/app/app
+      - ./tests:/app/tests
+    env_file:
+      # DATABASE_URL（共有 Postgres への接続情報）を読み込む。Git 管理外。
+      - .env
+    networks:
+      # 共有 Postgres（postgres_db）が属するネットワークに参加する
+      - database
+      - default
+    # 開発用に reload を有効化して起動を上書きする
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+networks:
+  database:
+    # 既存の共有ネットワーク（postgres_db が所属）を外部参照する
+    name: database_default
+    external: true
+  default:

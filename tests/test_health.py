@@ -1,0 +1,14 @@
+"""ヘルスチェックエンドポイントの単体テスト"""
+
+from fastapi.testclient import TestClient
+
+from app.main import app
+
+client = TestClient(app)
+
+
+def test_health_returns_ok() -> None:
+	"""GET /health は 200 と status=ok を返す"""
+	res = client.get("/health")
+	assert res.status_code == 200
+	assert res.json() == {"status": "ok"}

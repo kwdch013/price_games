@@ -1,0 +1,41 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+  schedule:
+    # 週次でも解析する（新規脆弱性ルールへの追随）
+    - cron: "17 3 * * 1"
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      # 解析結果を Security タブへ書き込む
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # フロントエンド（Vue）追加時に javascript-typescript を足す
+        language: [python]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CodeQL 初期化
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: CodeQL 解析
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

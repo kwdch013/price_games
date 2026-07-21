@@ -1,0 +1,16 @@
+.git
+.github
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+frontend/
+data/
+*.db
+*.sqlite*
+.env
+README.md
