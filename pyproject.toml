@@ -40,11 +40,9 @@ ignore = ["W191", "E101"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# 実ネットワークに接続する結合テストは明示指定でのみ実行する
 markers = [
-	"integration: 実サービス（Steam 等）へ接続する結合テスト",
+	"integration: 実 DB / 実サービスへ接続する結合テスト（接続不可なら自動スキップ）",
 ]
-addopts = "-m 'not integration'"
 
 [tool.mypy]
 python_version = "3.14"

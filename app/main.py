@@ -1,4 +1,4 @@
-"""FastAPI エントリポイント（Issue #1: 最小起動）"""
+"""FastAPI エントリポイント"""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import init_db
+from app.routers import games
 
 
 @asynccontextmanager
@@ -27,6 +28,8 @@ app.add_middleware(
 	allow_methods=["*"],
 	allow_headers=["*"],
 )
+
+app.include_router(games.router)
 
 
 @app.get("/health")
