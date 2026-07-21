@@ -6,11 +6,91 @@ export interface HealthResponse {
 	status: string
 }
 
+// 媒体の選択肢（バックエンドの Enum 値と一致させる）
+export const MEDIA = [
+	'PC(Steam)',
+	'PC(その他)',
+	'PS5',
+	'PS4',
+	'Nintendo Switch',
+	'Xbox',
+	'その他',
+] as const
+export type Medium = (typeof MEDIA)[number]
+
+export interface GameCreate {
+	title: string
+	medium: Medium
+	purchase_price: number
+	current_price: number | null
+	progress: number
+	note?: string
+}
+
+export interface Game {
+	id: number
+	title: string
+	medium: string
+	purchase_price: number
+	current_price: number | null
+	progress: number
+	note: string
+	steam_appid: number | null
+	created_at: string
+	pile_loss: number
+	price_diff_loss: number | null
+}
+
+export interface Summary {
+	count: number
+	total_pile_loss: number
+	total_price_diff_loss: number
+	total_loss: number
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+	const res = await fetch(`${API_BASE}${path}`, {
+		headers: { 'Content-Type': 'application/json' },
+		...init,
+	})
+	if (!res.ok) {
+		throw new Error(`request failed: ${res.status}`)
+	}
+	// 204 No Content は本文なし
+	if (res.status === 204) {
+		return undefined as T
+	}
+	return (await res.json()) as T
+}
+
 // ヘルスチェック。疎通確認に使う。
 export async function fetchHealth(): Promise<HealthResponse> {
-	const res = await fetch(`${API_BASE}/health`)
-	if (!res.ok) {
-		throw new Error(`health check failed: ${res.status}`)
+	return request<HealthResponse>('/health')
+}
+
+export async function listGames(): Promise<Game[]> {
+	return request<Game[]>('/games')
+}
+
+export async function createGame(payload: GameCreate): Promise<Game> {
+	return request<Game>('/games', {
+		method: 'POST',
+		body: JSON.stringify(payload),
+	})
+}
+
+export async function deleteGame(id: number): Promise<void> {
+	await request<void>(`/games/${id}`, { method: 'DELETE' })
+}
+
+export async function fetchSummary(): Promise<Summary> {
+	return request<Summary>('/games/summary')
+}
+
+// 円表示のユーティリティ
+export function formatYen(value: number | null): string {
+	if (value === null) {
+		return '—'
 	}
-	return (await res.json()) as HealthResponse
+	return `¥${value.toLocaleString('ja-JP')}`
 }
