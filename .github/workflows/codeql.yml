@@ -25,8 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # フロントエンド（Vue）追加時に javascript-typescript を足す
-        language: [python]
+        language: [python, javascript-typescript]
     steps:
       - uses: actions/checkout@v4
 
