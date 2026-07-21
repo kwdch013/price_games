@@ -23,7 +23,9 @@ _database_url = os.environ.get(
 	"DATABASE_URL",
 	"postgresql+psycopg://price_games:price_games@localhost:5432/price_games",
 )
-config.set_main_option("sqlalchemy.url", _database_url)
+# set_main_option は ConfigParser の補間を通すため、パスワード等に含まれる
+# `%`（URL エンコード時に出現）を `%%` にエスケープしてから渡す
+config.set_main_option("sqlalchemy.url", _database_url.replace("%", "%%"))
 
 if config.config_file_name is not None:
 	fileConfig(config.config_file_name)

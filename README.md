@@ -41,8 +41,9 @@ docker compose run --rm api alembic stamp head
 docker compose run --rm api alembic revision --autogenerate -m "変更内容"
 ```
 
-- ベースライン `0001_baseline` は既存 `game` テーブルに対応する
-- 既存の共有 DB は `alembic stamp head` 済み(`alembic_version = 0001_baseline`)
+- ベースライン `0001_baseline` は既存 `game` テーブル(PK・CHECK 制約含む)に対応する
+- 既存の共有 DB は `alembic stamp head` 済み(`alembic_version = 0001_baseline`)。stamp はテーブル/データを再作成せずリビジョンのみ記録する
+- `DATABASE_URL` にパスワードを URL エンコードして含める場合、`%` は `env.py` 側で `%%` にエスケープして扱う(`.env` に書く値自体は通常表記でよい)
 
 ## ステータス
 現在 Issue #1(プロジェクト基盤)を構築中。
