@@ -81,7 +81,8 @@ def test_モデル経由で価格履歴を登録し時系列で取得できる(
 		rows = session.exec(
 			select(PriceHistory)
 			.where(PriceHistory.game_id == game_id)
-			.order_by(PriceHistory.captured_at)  # type: ignore[arg-type]
+			# captured_at が同値でも挿入順で安定させるため id を第2キーにする
+			.order_by(PriceHistory.captured_at, PriceHistory.id)  # type: ignore[arg-type]
 		).all()
 		assert [r.price for r in rows] == [3000, 1980]
 		assert all(r.captured_at is not None for r in rows)

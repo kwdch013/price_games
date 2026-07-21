@@ -23,6 +23,11 @@ try:
 except SQLAlchemyError as exc:
 	pytest.skip(f"DB へ接続できないためスキップ: {exc}", allow_module_level=True)
 
+# FK CASCADE / CHECK 制約は PostgreSQL で検証する意図のため、他バックエンド（SQLite
+# フォールバック等）では無言でパスしないようスキップする
+if engine.dialect.name != "postgresql":
+	pytest.skip("PostgreSQL 専用の結合テスト", allow_module_level=True)
+
 
 def test_game削除で価格履歴もCASCADE削除される() -> None:
 	init_db()  # テーブルが無ければ作成
