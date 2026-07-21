@@ -29,10 +29,25 @@ const form = reactive<FormState>(initial())
 const error = ref('')
 const submitting = ref(false)
 
+// v-model.number は空欄時に '' を返し得るため、数値 or null に正規化する
+function toNumberOrNull(value: unknown): number | null {
+	if (value === null || value === undefined || value === '') {
+		return null
+	}
+	const n = Number(value)
+	return Number.isFinite(n) ? n : null
+}
+
 async function submit(): Promise<void> {
 	error.value = ''
-	if (!form.title.trim() || form.purchase_price === null) {
-		error.value = 'タイトルと購入価格は必須です'
+	const purchase = toNumberOrNull(form.purchase_price)
+	const current = toNumberOrNull(form.current_price)
+	if (!form.title.trim() || purchase === null || purchase < 0) {
+		error.value = 'タイトルと購入価格（0以上）は必須です'
+		return
+	}
+	if (current !== null && current < 0) {
+		error.value = '現在価格は0以上で入力してください'
 		return
 	}
 	submitting.value = true
@@ -40,8 +55,8 @@ async function submit(): Promise<void> {
 		const game = await createGame({
 			title: form.title.trim(),
 			medium: form.medium,
-			purchase_price: form.purchase_price,
-			current_price: form.current_price,
+			purchase_price: purchase,
+			current_price: current,
 			progress: form.progress,
 			note: form.note,
 		})

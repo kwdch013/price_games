@@ -20,16 +20,22 @@ const loadError = ref('')
 async function reload(): Promise<void> {
 	loadError.value = ''
 	try {
-		games.value = await listGames()
-		summary.value = await fetchSummary()
+		// 一覧と集計は両方そろってから反映し、片方だけ古くならないようにする
+		const [nextGames, nextSummary] = await Promise.all([listGames(), fetchSummary()])
+		games.value = nextGames
+		summary.value = nextSummary
 	} catch {
 		loadError.value = 'データの取得に失敗しました'
 	}
 }
 
 async function onDelete(id: number): Promise<void> {
-	await deleteGame(id)
-	await reload()
+	try {
+		await deleteGame(id)
+		await reload()
+	} catch {
+		loadError.value = '削除に失敗しました'
+	}
 }
 
 function onCreated(): void {

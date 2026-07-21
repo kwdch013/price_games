@@ -49,4 +49,17 @@ describe('GameForm', () => {
 		expect(createGameMock.mock.calls[0][0]).toMatchObject({ title: 'DQ', purchase_price: 5000 })
 		expect(wrapper.emitted('created')?.[0]).toEqual([created])
 	})
+
+	it('現在価格を空にすると null に正規化して送信する', async () => {
+		createGameMock.mockResolvedValue({} as Game)
+		const wrapper = mount(GameForm)
+		await wrapper.find('input[type="text"]').setValue('DQ')
+		const numbers = wrapper.findAll('input[type="number"]')
+		await numbers[0].setValue(5000) // 購入価格
+		await numbers[1].setValue('') // 現在価格を空に
+		await wrapper.find('form').trigger('submit')
+		await flushPromises()
+
+		expect(createGameMock.mock.calls[0][0].current_price).toBeNull()
+	})
 })
