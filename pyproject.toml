@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "price-games"
+version = "0.1.0"
+description = "積みゲーの損失を可視化する個人用 Web アプリ"
+requires-python = ">=3.14"
+dependencies = [
+	"fastapi>=0.115",
+	"uvicorn[standard]>=0.34",
+	"sqlmodel>=0.0.22",
+	"psycopg[binary]>=3.2",
+	"httpx>=0.28",
+]
+
+[project.optional-dependencies]
+dev = [
+	"pytest>=8.3",
+	"ruff>=0.9",
+	"mypy>=1.14",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.ruff]
+# タブインデントを採用する方針に合わせる
+indent-width = 4
+line-length = 100
+
+[tool.ruff.format]
+indent-style = "tab"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+# タブインデントを採用するため、タブを警告する規則は無効化する
+ignore = ["W191", "E101"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# 実ネットワークに接続する結合テストは明示指定でのみ実行する
+markers = [
+	"integration: 実サービス（Steam 等）へ接続する結合テスト",
+]
+addopts = "-m 'not integration'"
+
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
