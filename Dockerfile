@@ -11,6 +11,9 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY app ./app
 COPY tests ./tests
+# マイグレーション定義（alembic upgrade head を同一イメージで実行できるようにする）
+COPY alembic.ini ./
+COPY alembic ./alembic
 
 RUN pip install --no-cache-dir --upgrade pip && \
 	pip install --no-cache-dir ".[dev]"

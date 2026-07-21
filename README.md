@@ -29,5 +29,21 @@ docker compose run --rm api pytest   # テスト
 - API のホストポートは **8010**(8000 は既存の別アプリが使用中のため)
 - DB は共有 Postgres の `price_games` データベース/ロールを使用(接続は `database_default` ネットワーク経由)
 
+### DB マイグレーション(Alembic)
+スキーマ変更は Alembic で管理する。接続先は環境変数 `DATABASE_URL` から読む(`alembic.ini` にパスワードは書かない)。
+
+```bash
+# 最新スキーマへ適用（コンテナ内で実行）
+docker compose run --rm api alembic upgrade head
+# 既にテーブルが存在する DB を初回だけベースラインへ整合（再作成しない）
+docker compose run --rm api alembic stamp head
+# モデル変更から新リビジョンを自動生成
+docker compose run --rm api alembic revision --autogenerate -m "変更内容"
+```
+
+- ベースライン `0001_baseline` は既存 `game` テーブル(PK・CHECK 制約含む)に対応する
+- 既存の共有 DB は `alembic stamp head` 済み(`alembic_version = 0001_baseline`)。stamp はテーブル/データを再作成せずリビジョンのみ記録する
+- `DATABASE_URL` にパスワードを URL エンコードして含める場合、`%` は `env.py` 側で `%%` にエスケープして扱う(`.env` に書く値自体は通常表記でよい)
+
 ## ステータス
 現在 Issue #1(プロジェクト基盤)を構築中。
