@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# SQLite（データ本体はコミットしない）
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Node / Vue
+node_modules/
+frontend/dist/
+*.local
+
+# エディタ・OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# 環境変数
+.env
