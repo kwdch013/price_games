@@ -1,11 +1,13 @@
 """実 Steam Store API への結合テスト
 
-ネットワーク経由で実際に Steam へ接続できるときのみ実行し、
-接続できない環境（オフライン・レート制限など）では自動スキップする。
-外部サービスに依存するため CI では不安定になりうる点に留意する。
+外部サービス（Steam）に依存し CI では不安定になりうるため、既定では実行しない。
+`STEAM_INTEGRATION=1` を指定したときだけ実行する opt-in 方式とする
+（ローカルや専用ジョブでの実接続検証を想定）。指定時でも、接続不可・レート制限
+（4xx/5xx）などで疎通しない場合はモジュールごと自動スキップする。
 """
 
 import asyncio
+import os
 
 import httpx
 import pytest
@@ -14,10 +16,18 @@ from app.services import steam
 
 pytestmark = pytest.mark.integration
 
-# 実接続を試み、繋がらなければモジュールごとスキップする
+# 外部依存のため既定ではスキップ。opt-in のときだけ実接続を試みる。
+if not os.getenv("STEAM_INTEGRATION"):
+	pytest.skip(
+		"STEAM_INTEGRATION 未設定のためスキップ（実 Steam 結合テストは opt-in）",
+		allow_module_level=True,
+	)
+
+# 実接続を試み、疎通しなければ（接続不可・4xx/5xx）モジュールごとスキップする
 try:
 	with httpx.Client(timeout=10.0) as _c:
-		_c.get(steam.SEARCH_URL, params={"term": "portal", "l": "japanese", "cc": "jp"})
+		_resp = _c.get(steam.SEARCH_URL, params={"term": "portal", "l": "japanese", "cc": "jp"})
+		_resp.raise_for_status()
 except httpx.HTTPError as exc:
 	pytest.skip(f"Steam へ接続できないためスキップ: {exc}", allow_module_level=True)
 
