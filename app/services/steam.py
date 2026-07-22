@@ -25,7 +25,8 @@ def parse_price_jpy(price_overview: object) -> int | None:
 	if not isinstance(price_overview, dict):
 		return None
 	final = price_overview.get("final")
-	if isinstance(final, bool):
+	# bool は int のサブクラスなので明示的に除外する
+	if final is None or isinstance(final, bool):
 		return None
 	try:
 		return int(final) // 100

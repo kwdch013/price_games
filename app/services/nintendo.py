@@ -16,8 +16,7 @@ from decimal import Decimal, InvalidOperation
 import httpx
 
 from app.schemas import NintendoPrice, NintendoSearchItem
-from app.services.upstream import UpstreamResponseError, parse_json_object
-
+from app.services.upstream import parse_json_object
 
 SEARCH_URL = "https://search.nintendo.jp/nintendo_soft/search.json"
 PRICE_URL = "https://api.ec.nintendo.com/v1/price"
