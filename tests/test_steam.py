@@ -66,6 +66,19 @@ def test_価格情報が無ければNone() -> None:
 	assert steam.parse_price_jpy({}) is None
 
 
+def test_想定外の価格はNone() -> None:
+	# JSON は Infinity/NaN を含みうる。int() の OverflowError で 500 に漏らさない
+	assert steam.parse_price_jpy({"final": float("inf")}) is None
+	assert steam.parse_price_jpy({"final": float("nan")}) is None
+	# 負の価格は上流の異常なので価格不明として扱う
+	assert steam.parse_price_jpy({"final": -100}) is None
+	assert steam.parse_price_jpy({"final": "924000"}) == 9240
+	assert steam.parse_price_jpy({"final": "不正"}) is None
+	assert steam.parse_price_jpy({"final": [924000]}) is None
+	assert steam.parse_price_jpy({"final": True}) is None
+	assert steam.parse_price_jpy(["想定外"]) is None
+
+
 def test_検索候補を正規化する() -> None:
 	items = steam.normalize_search(_SEARCH_RAW)
 	assert len(items) == 2
@@ -129,6 +142,24 @@ def test_想定外の形の応答でも壊れない() -> None:
 	assert detail is not None
 	assert detail.genres == []
 	assert detail.release_date is None
+
+
+def test_successがtruthyな非boolなら該当なし() -> None:
+	# 文字列 "false" や 1 を成功と誤認すると、不正な応答から詳細を作ってしまう
+	for success in ("false", 1, ["ok"]):
+		raw = {"440": {"success": success, "data": {"steam_appid": 440, "name": "TF2"}}}
+		assert steam.normalize_detail(raw, 440) is None
+
+
+def test_appidが数値化できなくても壊れない() -> None:
+	# int() が OverflowError を投げる値でも 500 に漏らさない
+	assert steam.normalize_search({"items": [{"id": float("inf"), "name": "ゲーム"}]}) == []
+
+	raw = {"440": {"success": True, "data": {"steam_appid": float("inf"), "name": "TF2"}}}
+	detail = steam.normalize_detail(raw, 440)
+	assert detail is not None
+	# 上流の値が使えない場合は問い合わせた appid にフォールバックする
+	assert detail.appid == 440
 
 
 # ---- HTTP 呼び出し（MockTransport） ------------------------------------------

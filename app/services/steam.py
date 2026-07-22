@@ -29,9 +29,14 @@ def parse_price_jpy(price_overview: object) -> int | None:
 	if final is None or isinstance(final, bool):
 		return None
 	try:
-		return int(final) // 100
-	except TypeError, ValueError:
+		# JSON は Infinity/NaN を含みうる。int() は OverflowError/ValueError を投げる
+		value = int(final)
+	except TypeError, ValueError, OverflowError:
 		return None
+	# 負の価格は上流の異常。黙って通さず価格不明として扱う
+	if value < 0:
+		return None
+	return value // 100
 
 
 def normalize_search(raw: dict) -> list[SteamSearchItem]:
@@ -49,7 +54,7 @@ def normalize_search(raw: dict) -> list[SteamSearchItem]:
 			continue
 		try:
 			parsed_appid = int(appid)
-		except TypeError, ValueError:
+		except TypeError, ValueError, OverflowError:
 			continue
 		tiny_image = it.get("tiny_image")
 		result.append(
@@ -66,7 +71,8 @@ def normalize_search(raw: dict) -> list[SteamSearchItem]:
 def normalize_detail(raw: dict, appid: int) -> SteamAppDetail | None:
 	"""appdetails のレスポンスを詳細へ変換する。取得失敗（success=False）は None。"""
 	entry = raw.get(str(appid))
-	if not isinstance(entry, dict) or not entry.get("success"):
+	# success は真偽値。文字列 "false" などの truthy な非 bool を成功と誤認しない
+	if not isinstance(entry, dict) or entry.get("success") is not True:
 		return None
 	data = entry.get("data")
 	if not isinstance(data, dict):
@@ -84,7 +90,7 @@ def normalize_detail(raw: dict, appid: int) -> SteamAppDetail | None:
 	raw_appid = data.get("steam_appid", appid)
 	try:
 		parsed_appid = int(raw_appid)
-	except TypeError, ValueError:
+	except TypeError, ValueError, OverflowError:
 		parsed_appid = appid
 	header_image = data.get("header_image")
 	short_description = data.get("short_description")
