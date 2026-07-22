@@ -1,9 +1,10 @@
 """Alembic マイグレーションの検証
 
-Issue #12 の受け入れ条件に対応する:
+Issue #12 / #16 の受け入れ条件に対応する:
 - まっさらな DB に `upgrade head` で game テーブル（PK・CHECK 制約含む）が作られる
 - ベースラインが現行モデルと一致（autogenerate 差分ゼロ）
 - 既存 DB を `stamp head` してもテーブル・データが破壊されない
+- 既存の日時データを保持したまま timezone-aware に移行できる
 
 一時 SQLite ファイル DB を用いるため実 DB 接続は不要（単体テストとして常時実行）。
 """
@@ -17,7 +18,7 @@ from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import DateTime, create_engine, inspect, text
 from sqlmodel import Session, SQLModel, select
 
 import app.models  # noqa: F401  # SQLModel.metadata へモデルを登録する副作用のため
@@ -79,6 +80,17 @@ def test_upgrade_headでgameテーブルがPKとCHECK制約付きで作成され
 	assert _EXPECTED_CHECKS <= checks
 
 
+def test_日時列がtimezone付きかつDB既定値付きで定義される() -> None:
+	for table_name, column_name in (
+		("game", "created_at"),
+		("price_history", "captured_at"),
+	):
+		column = SQLModel.metadata.tables[table_name].c[column_name]
+		assert isinstance(column.type, DateTime)
+		assert column.type.timezone is True
+		assert column.server_default is not None
+
+
 def test_ベースラインが現行モデルと一致する(
 	tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -122,3 +134,46 @@ def test_stampは既存テーブルとデータを破壊しない(
 	with engine.connect() as conn:
 		version = conn.exec_driver_sql("SELECT version_num FROM alembic_version").scalar()
 	assert version == head
+
+
+def test_0003_upgradeは既存の日時データを保持する(
+	tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+	url = f"sqlite:///{tmp_path / 'preserve.db'}"
+	cfg = _alembic_config(monkeypatch, url)
+	command.upgrade(cfg, "0002_price_history")
+	engine = create_engine(url)
+	with engine.begin() as conn:
+		conn.execute(
+			text(
+				"""
+				INSERT INTO game (
+					id, title, medium, purchase_price, current_price,
+					progress, note, steam_appid, created_at
+				) VALUES (
+					1, '既存ゲーム', 'PC(Steam)', 1000, NULL,
+					0, '', NULL, '2026-01-02 03:04:05'
+				)
+					"""
+				)
+			)
+		conn.execute(
+			text(
+				"""
+				INSERT INTO price_history (id, game_id, price, captured_at)
+				VALUES (1, 1, 900, '2026-02-03 04:05:06')
+					"""
+				)
+			)
+
+	command.upgrade(cfg, "head")
+
+	with engine.connect() as conn:
+		game = conn.execute(
+			text("SELECT title, created_at FROM game WHERE id = 1")
+		).one()
+		history = conn.execute(
+			text("SELECT price, captured_at FROM price_history WHERE id = 1")
+		).one()
+	assert game == ("既存ゲーム", "2026-01-02 03:04:05")
+	assert history == (900, "2026-02-03 04:05:06")
