@@ -41,6 +41,7 @@ class TestLocalNetworkRegex:
 			"http://172.31.255.254:8010",
 			"http://mypc.local:5173",
 			"http://192.168.0.100",  # ポート省略（80 番）
+			"http://192.168.0.100:65535",  # ポートの上限
 		]
 		for origin in allowed:
 			assert re.fullmatch(LOCAL_NETWORK_ORIGIN_REGEX, origin), origin
@@ -52,6 +53,10 @@ class TestLocalNetworkRegex:
 			"http://172.32.0.1:5173",  # プライベート範囲外
 			"http://11.0.0.1:5173",
 			"http://localhost.evil.com",
+			"http://10.999.999.999:5173",  # オクテットが範囲外
+			"http://192.168.0.256",
+			"http://192.168.0.100:99999",  # ポートが範囲外
+			"http://192.168.0.100:0",
 		]
 		for origin in rejected:
 			assert not re.fullmatch(LOCAL_NETWORK_ORIGIN_REGEX, origin), origin

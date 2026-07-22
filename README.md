@@ -38,6 +38,8 @@ docker compose run --rm api pytest   # テスト
 - CORS はプライベート IP レンジ(10/172.16-31/192.168)・`localhost`・`*.local` を既定で許可する。
   公開ドメインなど別のオリジンを許可したい場合のみ、環境変数 `CORS_ORIGINS`(カンマ区切り)を指定する
 - ホストで直接 `npm run dev` する場合は `VITE_PROXY_TARGET=http://localhost:8010` を指定する
+- IP アドレス・`localhost` でのアクセスは Vite が既定で許可する。独自ホスト名(例 `myserver.local`)で開く場合のみ
+  `VITE_ALLOWED_HOSTS`(カンマ区切り)に列挙する。DNS rebinding 対策のため Host 検査自体は無効化しない
 
 ### DB マイグレーション(Alembic)
 スキーマ変更は Alembic で管理する。接続先は環境変数 `DATABASE_URL` から読む(`alembic.ini` にパスワードは書かない)。

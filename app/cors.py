@@ -12,17 +12,22 @@ import os
 from collections.abc import Mapping
 from typing import Any
 
+# IPv4 の 1 オクテット（0-255）。`10.999.999.999` のような無効値を許可しないため範囲を限定する
+_OCTET = r"(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
+# ポート番号（1-65535）
+_PORT = r"(6553[0-5]|655[0-2]\d|65[0-4]\d\d|6[0-4]\d{3}|[1-5]\d{4}|[1-9]\d{0,3})"
+
 # ローカルネットワークからのオリジン。fullmatch 前提のため、
 # `http://192.168.0.100.evil.com` のような前方一致での回避は成立しない。
 LOCAL_NETWORK_ORIGIN_REGEX = (
 	r"https?://("
 	r"localhost"
-	r"|127\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-	r"|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-	r"|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
-	r"|192\.168\.\d{1,3}\.\d{1,3}"
+	rf"|127\.{_OCTET}\.{_OCTET}\.{_OCTET}"
+	rf"|10\.{_OCTET}\.{_OCTET}\.{_OCTET}"
+	rf"|172\.(1[6-9]|2\d|3[01])\.{_OCTET}\.{_OCTET}"
+	rf"|192\.168\.{_OCTET}\.{_OCTET}"
 	r"|[A-Za-z0-9-]+\.local"
-	r")(:\d+)?"
+	rf")(:{_PORT})?"
 )
 
 
