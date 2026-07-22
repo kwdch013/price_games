@@ -79,6 +79,27 @@ class SteamSearchItem(BaseModel):
 	price: int | None = None  # 現在価格（円）。取得できない場合は None
 
 
+class NintendoSearchItem(BaseModel):
+	"""Nintendo eShop 検索候補（正規化後）"""
+
+	# ダウンロード版が無い（未発売・パッケージのみ）候補は None。価格を取得できない
+	nsuid: str | None = None
+	title: str
+	hardware: str | None = None  # 機種の表示名（Nintendo Switch / Nintendo Switch 2）
+	thumbnail: str | None = None
+	price: int | None = None  # 検索結果に含まれる現在価格（円）
+
+
+class NintendoPrice(BaseModel):
+	"""Nintendo eShop の価格（正規化後）"""
+
+	nsuid: str
+	regular_price: int  # 定価（円）
+	current_price: int  # 現在価格（円）。セール中はセール価格
+	on_sale: bool = False
+	sale_end: str | None = None  # セール終了日時（ISO8601・UTC）
+
+
 class SteamAppDetail(BaseModel):
 	"""Steam アプリ詳細（正規化後）"""
 
