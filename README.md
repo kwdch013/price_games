@@ -46,6 +46,10 @@ docker compose run --rm -e STEAM_INTEGRATION=1 api pytest tests/test_steam_integ
 docker compose run --rm -e NINTENDO_INTEGRATION=1 api pytest tests/test_nintendo_integration.py
 ```
 
+opt-in で有効化した後の自動スキップは、**上流へ接続できない場合(`ConnectError` / `ConnectTimeout`)だけ**に限る
+(判定は `tests/upstream_probe.py` に集約)。4xx/5xx・`ReadTimeout`・不正な HTTP 応答は URL 廃止や
+リクエスト仕様の変更を示すため、スキップせず失敗させる(スキップ＝成功扱いを避ける)。
+
 - API のホストポートは **8010**(8000 は既存の別アプリが使用中のため)
 - フロント(Vite dev server)のホストポートは **5173**
 - DB は共有 Postgres の `price_games` データベース/ロールを使用(接続は `database_default` ネットワーク経由)
@@ -76,10 +80,18 @@ docker compose run --rm api alembic revision --autogenerate -m "変更内容"
 #### リビジョン
 - `0001_baseline` — 既存 `game` テーブル(PK・CHECK 制約含む)。既存の共有 DB は当初 `alembic stamp head` で整合済み(stamp はテーブル/データを再作成せずリビジョンのみ記録する)
 - `0002_price_history` — 価格推移を残す `price_history` テーブル(FK `game.id` の `ON DELETE CASCADE`、`price >= 0` の CHECK、`game_id` の index)
+- `0003_timestamp_tz_aware` — `game.created_at` と `price_history.captured_at` を `timestamptz` へ変更し、`server_default`(`CURRENT_TIMESTAMP`)を付与。ORM を介さない直 SQL INSERT でも「既定=現在時刻」が成立する。既存の naive 値は UTC とみなして変換する
 
 補足:
 - `DATABASE_URL` にパスワードを URL エンコードして含める場合、`%` は `env.py` 側で `%%` にエスケープして扱う(`.env` に書く値自体は通常表記でよい)
 - 当面は起動時 `init_db()`(create_all)と Alembic を併存させる。両者は制約名が異なりうるため、正となるスキーマは Alembic のリビジョンとする
 
 ## ステータス
-現在 Issue #1(プロジェクト基盤)を構築中。
+ゲーム登録・一覧・損失ダッシュボード、Steam / Nintendo eShop のタイトルサジェストと現在価格の自動入力、
+価格履歴テーブル(`price_history`)、Alembic によるスキーマ管理まで実装済み。
+
+未着手の主な検討事項:
+
+- 登録済みゲームの価格を定期的に再取得して `price_history` へ蓄積するバッチ
+- Switch の価格再取得に必要な `game.nsuid` 列の追加(現状 `steam_appid` のみのため Switch は登録時の価格しか残らない)
+- PS5 / PS4 / Xbox の価格取得(公開 API が無く実装コストが高いため保留)
