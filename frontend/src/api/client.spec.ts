@@ -4,9 +4,11 @@ import {
 	createGame,
 	deleteGame,
 	fetchHealth,
+	fetchNintendoPrice,
 	fetchSteamApp,
 	fetchSummary,
 	formatYen,
+	searchNintendo,
 	searchSteam,
 } from './client'
 
@@ -99,6 +101,48 @@ describe('Steam メタデータ取得', () => {
 
 		await expect(fetchSteamApp(1245620)).resolves.toEqual(detail)
 		expect(f.mock.calls[0][0]).toContain('/steam/apps/1245620')
+	})
+})
+
+describe('Nintendo eShop 価格取得', () => {
+	it('searchNintendo は /nintendo/search?q= を叩き候補一覧を返す', async () => {
+		const items = [
+			{
+				nsuid: '70010000046394',
+				title: 'スプラトゥーン3',
+				hardware: 'Nintendo Switch',
+				thumbnail: null,
+				price: 6500,
+			},
+		]
+		const f = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve(items),
+		})
+		vi.stubGlobal('fetch', f)
+
+		await expect(searchNintendo('スプラトゥーン')).resolves.toEqual(items)
+		expect(f.mock.calls[0][0]).toContain('/nintendo/search?q=')
+	})
+
+	it('fetchNintendoPrice は /nintendo/price/{nsuid} を叩き価格を返す', async () => {
+		const price = {
+			nsuid: '70070000037189',
+			regular_price: 2358,
+			current_price: 471,
+			on_sale: true,
+			sale_end: '2026-07-31T14:59:59Z',
+		}
+		const f = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve(price),
+		})
+		vi.stubGlobal('fetch', f)
+
+		await expect(fetchNintendoPrice('70070000037189')).resolves.toEqual(price)
+		expect(f.mock.calls[0][0]).toContain('/nintendo/price/70070000037189')
 	})
 })
 

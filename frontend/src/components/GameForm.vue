@@ -1,16 +1,11 @@
 <script setup lang="ts">
 // ゲーム登録フォーム。登録に成功したら created イベントで新規ゲームを親へ通知する。
-// タイトル入力から Steam を検索し、候補選択で発売日/現在価格/画像/steam_appid を自動反映する。
-import { onBeforeUnmount, reactive, ref, watch } from 'vue'
-import {
-	createGame,
-	fetchSteamApp,
-	MEDIA,
-	searchSteam,
-	type Game,
-	type Medium,
-	type SteamSearchItem,
-} from '../api/client'
+// タイトル入力とサジェストは TitleSuggest に委ね、ここでは選択結果を
+// 発売日/現在価格/画像/steam_appid へ反映する。
+import { reactive, ref } from 'vue'
+import { createGame, MEDIA, type Game, type Medium } from '../api/client'
+import type { SuggestDetail } from '../api/suggest'
+import TitleSuggest from './TitleSuggest.vue'
 
 const emit = defineEmits<{ created: [game: Game] }>()
 
@@ -40,88 +35,50 @@ const form = reactive<FormState>(initial())
 const error = ref('')
 const submitting = ref(false)
 
-// Steam サジェスト関連の状態
-const suggestions = ref<SteamSearchItem[]>([])
-const searching = ref(false)
-// 選択で得た発売日・画像はプレビュー表示のみ（Game モデルに列が無いため永続化しない）
+// 候補選択で得た発売日・画像・補足はプレビュー表示のみ
+// （Game モデルに列が無いため永続化しない）
 const releaseDate = ref<string | null>(null)
 const headerImage = ref<string | null>(null)
+const selectedNote = ref<string | null>(null)
 
-const SEARCH_DELAY_MS = 300
-const MIN_QUERY_LEN = 2
-let debounceTimer: ReturnType<typeof setTimeout> | undefined
-// 候補選択でタイトルを書き換える際、再検索を走らせないためのフラグ
-let suppressSearch = false
-// 手入力のたびに進める世代番号。非同期の検索・詳細取得は、await 後にこの値が
-// 進んでいれば「古い結果」とみなして破棄し、新しい入力状態を上書きしないようにする。
-let inputGen = 0
+// 保留中の検索・詳細取得を送信後に無効化するため子を参照する
+const titleSuggest = ref<InstanceType<typeof TitleSuggest> | null>(null)
 
-// タイトル入力の変化を監視し、デバウンスして Steam を検索する
-watch(
-	() => form.title,
-	(title) => {
-		if (suppressSearch) {
-			suppressSearch = false
-			return
-		}
-		// 手入力で世代を進め、前回の Steam 紐付けは無効化する（古い appid の送信を防ぐ）
-		inputGen += 1
+// 候補選択で自動入力した現在価格。紐付けが外れたときに
+// 「自動入力のまま手を加えていない値」だけを消すために覚えておく。
+let autoFilledPrice: number | null = null
+
+/** 自動入力された現在価格を捨てる。利用者が編集した値はそのまま残す */
+function clearAutoFilledPrice(): void {
+	if (autoFilledPrice !== null && form.current_price === autoFilledPrice) {
+		form.current_price = null
+	}
+	autoFilledPrice = null
+}
+
+/** サジェストの選択結果を反映する。手入力で紐付けが外れた場合は null が渡る */
+function onSuggestSelect(detail: SuggestDetail | null): void {
+	if (detail === null) {
+		// 媒体変更・手入力で紐付けが外れた：前の提供元の価格を引き継がない
+		clearAutoFilledPrice()
 		form.steam_appid = null
 		releaseDate.value = null
 		headerImage.value = null
-		clearTimeout(debounceTimer)
-		const q = title.trim()
-		if (q.length < MIN_QUERY_LEN) {
-			suggestions.value = []
-			return
-		}
-		const gen = inputGen
-		debounceTimer = setTimeout(() => void runSearch(q, gen), SEARCH_DELAY_MS)
-	},
-)
-
-async function runSearch(q: string, gen: number): Promise<void> {
-	searching.value = true
-	try {
-		const items = await searchSteam(q)
-		if (gen !== inputGen) {
-			return // 手入力が進んでいる：古いレスポンスなので破棄
-		}
-		suggestions.value = items
-	} catch {
-		if (gen === inputGen) {
-			suggestions.value = []
-		}
-	} finally {
-		searching.value = false
+		selectedNote.value = null
+		return
 	}
-}
-
-// 候補を選択：詳細を取得してタイトル・現在価格・steam_appid を自動反映する
-async function onSelect(item: SteamSearchItem): Promise<void> {
-	const gen = inputGen
-	suggestions.value = []
-	try {
-		const detail = await fetchSteamApp(item.appid)
-		if (gen !== inputGen) {
-			return // 取得中に手入力された：古い詳細で上書きしない
-		}
-		suppressSearch = true
-		form.title = detail.name
-		form.steam_appid = detail.appid
-		if (detail.current_price !== null) {
-			form.current_price = detail.current_price
-		}
-		releaseDate.value = detail.release_date
-		headerImage.value = detail.header_image
-	} catch {
-		if (gen === inputGen) {
-			error.value = 'Steam 詳細の取得に失敗しました'
-		}
+	form.steam_appid = detail.steamAppid
+	if (detail.currentPrice === null) {
+		// 価格を取得できない候補：前の候補の価格を残さない
+		clearAutoFilledPrice()
+	} else {
+		form.current_price = detail.currentPrice
+		autoFilledPrice = detail.currentPrice
 	}
+	releaseDate.value = detail.releaseDate
+	headerImage.value = detail.image
+	selectedNote.value = detail.note
 }
-
-onBeforeUnmount(() => clearTimeout(debounceTimer))
 
 // v-model.number は空欄時に '' を返し得るため、数値 or null に正規化する
 function toNumberOrNull(value: unknown): number | null {
@@ -159,11 +116,11 @@ async function submit(): Promise<void> {
 			steam_appid: form.steam_appid,
 		})
 		emit('created', game)
-		suppressSearch = true
 		Object.assign(form, initial())
-		suggestions.value = []
-		releaseDate.value = null
-		headerImage.value = null
+		// 保留中の検索・詳細取得を無効化してから状態を捨てる
+		titleSuggest.value?.reset()
+		autoFilledPrice = null
+		onSuggestSelect(null)
 	} catch {
 		error.value = '登録に失敗しました'
 	} finally {
@@ -175,27 +132,20 @@ async function submit(): Promise<void> {
 <template>
 	<form class="game-form" @submit.prevent="submit">
 		<h2>ゲームを登録</h2>
-		<label class="title-field">
-			タイトル
-			<input v-model="form.title" type="text" placeholder="例: エルデンリング" autocomplete="off" />
-			<span v-if="searching" class="hint">検索中…</span>
-			<ul v-if="suggestions.length" class="suggest-list">
-				<li
-					v-for="item in suggestions"
-					:key="item.appid"
-					class="suggest-item"
-					@click="onSelect(item)"
-				>
-					<img v-if="item.tiny_image" :src="item.tiny_image" alt="" class="suggest-thumb" />
-					<span class="suggest-name">{{ item.name }}</span>
-				</li>
-			</ul>
-		</label>
-		<div v-if="form.steam_appid" class="steam-preview">
+		<TitleSuggest
+			ref="titleSuggest"
+			:title="form.title"
+			:medium="form.medium"
+			@update:title="form.title = $event"
+			@select="onSuggestSelect"
+			@error="error = $event"
+		/>
+		<div v-if="form.steam_appid || selectedNote || releaseDate" class="steam-preview">
 			<img v-if="headerImage" :src="headerImage" alt="" class="preview-image" />
 			<p class="preview-meta">
-				Steam 連携済み（appid: {{ form.steam_appid }}）<br />
-				<span v-if="releaseDate">発売日: {{ releaseDate }}</span>
+				<span v-if="form.steam_appid">Steam 連携済み（appid: {{ form.steam_appid }}）<br /></span>
+				<span v-if="releaseDate">発売日: {{ releaseDate }}<br /></span>
+				<span v-if="selectedNote">{{ selectedNote }}</span>
 			</p>
 		</div>
 		<label>
@@ -237,41 +187,6 @@ async function submit(): Promise<void> {
 	display: grid;
 	gap: 0.2rem;
 	font-size: 0.9rem;
-}
-.title-field {
-	position: relative;
-}
-.hint {
-	font-size: 0.75rem;
-	color: #888;
-}
-.suggest-list {
-	list-style: none;
-	margin: 0.2rem 0 0;
-	padding: 0;
-	border: 1px solid #ccc;
-	border-radius: 6px;
-	max-height: 14rem;
-	overflow-y: auto;
-	background: #fff;
-}
-.suggest-item {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-	padding: 0.3rem 0.5rem;
-	cursor: pointer;
-}
-.suggest-item:hover {
-	background: #f0f0f0;
-}
-.suggest-thumb {
-	width: 60px;
-	height: auto;
-	border-radius: 3px;
-}
-.suggest-name {
-	font-size: 0.85rem;
 }
 .steam-preview {
 	display: flex;

@@ -38,6 +38,25 @@ export interface SteamSearchItem {
 	price: number | null
 }
 
+// Nintendo eShop 検索候補（バックエンドの NintendoSearchItem と一致）
+export interface NintendoSearchItem {
+	// ダウンロード版が無い候補は null。価格を取得できない
+	nsuid: string | null
+	title: string
+	hardware: string | null
+	thumbnail: string | null
+	price: number | null
+}
+
+// Nintendo eShop の価格（バックエンドの NintendoPrice と一致）
+export interface NintendoPrice {
+	nsuid: string
+	regular_price: number
+	current_price: number
+	on_sale: boolean
+	sale_end: string | null
+}
+
 // Steam アプリ詳細（バックエンドの SteamAppDetail と一致）
 export interface SteamAppDetail {
 	appid: number
@@ -117,6 +136,16 @@ export async function searchSteam(q: string): Promise<SteamSearchItem[]> {
 // appid から Steam アプリ詳細（発売日・現在価格・画像など）を取得する
 export async function fetchSteamApp(appid: number): Promise<SteamAppDetail> {
 	return request<SteamAppDetail>(`/steam/apps/${appid}`)
+}
+
+// タイトル文字列から Nintendo eShop の候補（Switch / Switch 2）を取得する
+export async function searchNintendo(q: string): Promise<NintendoSearchItem[]> {
+	return request<NintendoSearchItem[]>(`/nintendo/search?q=${encodeURIComponent(q)}`)
+}
+
+// nsuid から現在価格（セール中はセール価格）を取得する
+export async function fetchNintendoPrice(nsuid: string): Promise<NintendoPrice> {
+	return request<NintendoPrice>(`/nintendo/price/${encodeURIComponent(nsuid)}`)
 }
 
 // 円表示のユーティリティ
