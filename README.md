@@ -27,7 +27,19 @@ docker compose run --rm api pytest   # テスト
 ```
 
 - API のホストポートは **8010**(8000 は既存の別アプリが使用中のため)
+- フロント(Vite dev server)のホストポートは **5173**
 - DB は共有 Postgres の `price_games` データベース/ロールを使用(接続は `database_default` ネットワーク経由)
+
+### 別マシン(LAN)からアクセスする
+`http://<サーバーの IP>:5173` を開けばそのまま動く。設定変更は不要。
+
+- フロントは API を **同一オリジンの `/api`** で叩き、Vite dev server が `VITE_PROXY_TARGET`(既定 `http://api:8000`)へ中継する。
+  ブラウザ視点の `localhost` に依存しないため、どのマシンから開いても到達できる
+- CORS はプライベート IP レンジ(10/172.16-31/192.168)・`localhost`・`*.local` を既定で許可する。
+  公開ドメインなど別のオリジンを許可したい場合のみ、環境変数 `CORS_ORIGINS`(カンマ区切り)を指定する
+- ホストで直接 `npm run dev` する場合は `VITE_PROXY_TARGET=http://localhost:8010` を指定する
+- IP アドレス・`localhost` でのアクセスは Vite が既定で許可する。独自ホスト名(例 `myserver.local`)で開く場合のみ
+  `VITE_ALLOWED_HOSTS`(カンマ区切り)に列挙する。DNS rebinding 対策のため Host 検査自体は無効化しない
 
 ### DB マイグレーション(Alembic)
 スキーマ変更は Alembic で管理する。接続先は環境変数 `DATABASE_URL` から読む(`alembic.ini` にパスワードは書かない)。

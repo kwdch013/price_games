@@ -1,6 +1,8 @@
 // バックエンド API への薄いクライアント
-// API のベース URL は環境変数で上書き可能（既定は開発時のホストポート 8010）
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8010'
+// 既定は同一オリジンの相対パス `/api`（dev server が API コンテナへプロキシする）。
+// ホスト名入りの絶対 URL を既定にすると、LAN 内の別マシンから開いたときに
+// そのマシン自身を指してしまい接続できないため、絶対 URL は明示指定時のみ使う。
+const API_BASE = import.meta.env.VITE_API_BASE || '/api'
 
 export interface HealthResponse {
 	status: string
