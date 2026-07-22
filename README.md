@@ -16,14 +16,30 @@
 - バックエンド: FastAPI (Python 3.14)
 - データベース: 共有 PostgreSQL(サーバー上の `postgres_db` を他アプリと使い回す)
 - フロントエンド: Vue 3 (Vite / TypeScript)
-- メタデータ源: Steam Store API(無料・キー不要)
+- メタデータ源: Steam Store API / Nintendo eShop(いずれも無料・キー不要)
 - 実行環境: Docker
+
+### 価格取得の対応状況
+| 媒体 | 検索 | 現在価格 | 取得元 |
+| --- | --- | --- | --- |
+| PC(Steam) | ○ | ○ | Steam Store API |
+| Nintendo Switch / Switch 2 | ○ | ○(セール価格を含む) | `search.nintendo.jp` + `api.ec.nintendo.com` |
+| PS5 / PS4 / Xbox | — | — | 公開 API が無く未対応 |
+
+いずれもダウンロード版の価格。Nintendo は 3DS・Wii U・amiibo などを候補から除外している。
 
 ## 開発
 ```bash
 cp .env.example .env        # DATABASE_URL を設定（共有 Postgres の price_games ロール）
 docker compose up           # API 起動(http://localhost:8010）
 docker compose run --rm api pytest   # テスト
+```
+
+外部サービスへ実接続する結合テストは opt-in。実行する場合は環境変数を指定する。
+
+```bash
+docker compose run --rm -e STEAM_INTEGRATION=1 api pytest tests/test_steam_integration.py
+docker compose run --rm -e NINTENDO_INTEGRATION=1 api pytest tests/test_nintendo_integration.py
 ```
 
 - API のホストポートは **8010**(8000 は既存の別アプリが使用中のため)

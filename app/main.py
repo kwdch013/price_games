@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.cors import cors_options
 from app.db import init_db
-from app.routers import games, steam
+from app.routers import games, nintendo, steam
 
 
 @asynccontextmanager
@@ -27,6 +27,7 @@ app.add_middleware(CORSMiddleware, **cors_options())
 
 app.include_router(games.router)
 app.include_router(steam.router)
+app.include_router(nintendo.router)
 
 
 @app.get("/health")
