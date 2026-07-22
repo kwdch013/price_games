@@ -106,6 +106,31 @@ def test_価格未設定の詳細はcurrent_priceがNone() -> None:
 	assert detail.genres == []
 
 
+def test_想定外の形の応答でも壊れない() -> None:
+	# 上流の仕様変更で型が変わっても例外にせず「該当なし」として扱う
+	assert steam.normalize_search({"items": {"id": 1}}) == []
+	assert steam.normalize_search({"items": ["文字列"]}) == []
+	assert steam.normalize_search({"items": [{"id": "不正", "name": "ゲーム"}]}) == []
+	assert steam.normalize_detail({"440": "文字列"}, 440) is None
+	assert steam.normalize_detail({"440": {"success": True, "data": "文字列"}}, 440) is None
+
+	raw = {
+		"440": {
+			"success": True,
+			"data": {
+				"steam_appid": 440,
+				"name": "Team Fortress 2",
+				"genres": {"description": "アクション"},
+				"release_date": "文字列",
+			},
+		}
+	}
+	detail = steam.normalize_detail(raw, 440)
+	assert detail is not None
+	assert detail.genres == []
+	assert detail.release_date is None
+
+
 # ---- HTTP 呼び出し（MockTransport） ------------------------------------------
 
 
@@ -208,4 +233,27 @@ def test_Steam側エラーは502() -> None:
 	gen = _override_with(httpx.MockTransport(handler))
 	client = next(gen)
 	assert client.get("/steam/search", params={"q": "x"}).status_code == 502
+	next(gen, None)  # teardown
+
+
+def test_JSONでない応答も502() -> None:
+	# 上流がエラーページ（HTTP 200 + HTML）を返すことがあるため 500 にしない
+	def handler(request: httpx.Request) -> httpx.Response:
+		return httpx.Response(200, text="<html>error</html>")
+
+	gen = _override_with(httpx.MockTransport(handler))
+	client = next(gen)
+	assert client.get("/steam/search", params={"q": "x"}).status_code == 502
+	assert client.get("/steam/apps/440").status_code == 502
+	next(gen, None)  # teardown
+
+
+def test_JSONだが想定外の形なら502() -> None:
+	def handler(request: httpx.Request) -> httpx.Response:
+		return httpx.Response(200, json=["想定外"])
+
+	gen = _override_with(httpx.MockTransport(handler))
+	client = next(gen)
+	assert client.get("/steam/search", params={"q": "x"}).status_code == 502
+	assert client.get("/steam/apps/440").status_code == 502
 	next(gen, None)  # teardown
