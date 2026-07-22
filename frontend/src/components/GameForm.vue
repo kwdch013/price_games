@@ -41,9 +41,26 @@ const releaseDate = ref<string | null>(null)
 const headerImage = ref<string | null>(null)
 const selectedNote = ref<string | null>(null)
 
+// 保留中の検索・詳細取得を送信後に無効化するため子を参照する
+const titleSuggest = ref<InstanceType<typeof TitleSuggest> | null>(null)
+
+// 候補選択で自動入力した現在価格。紐付けが外れたときに
+// 「自動入力のまま手を加えていない値」だけを消すために覚えておく。
+let autoFilledPrice: number | null = null
+
+/** 自動入力された現在価格を捨てる。利用者が編集した値はそのまま残す */
+function clearAutoFilledPrice(): void {
+	if (autoFilledPrice !== null && form.current_price === autoFilledPrice) {
+		form.current_price = null
+	}
+	autoFilledPrice = null
+}
+
 /** サジェストの選択結果を反映する。手入力で紐付けが外れた場合は null が渡る */
 function onSuggestSelect(detail: SuggestDetail | null): void {
 	if (detail === null) {
+		// 媒体変更・手入力で紐付けが外れた：前の提供元の価格を引き継がない
+		clearAutoFilledPrice()
 		form.steam_appid = null
 		releaseDate.value = null
 		headerImage.value = null
@@ -51,8 +68,12 @@ function onSuggestSelect(detail: SuggestDetail | null): void {
 		return
 	}
 	form.steam_appid = detail.steamAppid
-	if (detail.currentPrice !== null) {
+	if (detail.currentPrice === null) {
+		// 価格を取得できない候補：前の候補の価格を残さない
+		clearAutoFilledPrice()
+	} else {
 		form.current_price = detail.currentPrice
+		autoFilledPrice = detail.currentPrice
 	}
 	releaseDate.value = detail.releaseDate
 	headerImage.value = detail.image
@@ -96,6 +117,9 @@ async function submit(): Promise<void> {
 		})
 		emit('created', game)
 		Object.assign(form, initial())
+		// 保留中の検索・詳細取得を無効化してから状態を捨てる
+		titleSuggest.value?.reset()
+		autoFilledPrice = null
 		onSuggestSelect(null)
 	} catch {
 		error.value = '登録に失敗しました'
@@ -109,6 +133,7 @@ async function submit(): Promise<void> {
 	<form class="game-form" @submit.prevent="submit">
 		<h2>ゲームを登録</h2>
 		<TitleSuggest
+			ref="titleSuggest"
 			:title="form.title"
 			:medium="form.medium"
 			@update:title="form.title = $event"

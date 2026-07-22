@@ -86,9 +86,27 @@ async function runSearch(q: string, medium: Medium, gen: number): Promise<void> 
 			suggestions.value = []
 		}
 	} finally {
-		searching.value = false
+		// 新しい検索が走っている場合に「検索中」表示を消さない
+		if (gen === inputGen) {
+			searching.value = false
+		}
 	}
 }
+
+/**
+ * 保留中の検索・詳細取得を無効化して初期状態へ戻す。
+ * 送信後のフォームリセットのように、親が同期的に状態を捨てたい場合に呼ぶ。
+ * watch の発火はスケジューラ依存で遅れるため、親からの明示的な無効化手段を用意する。
+ */
+function reset(): void {
+	inputGen += 1
+	appliedTitle = null
+	suggestions.value = []
+	searching.value = false
+	clearTimeout(debounceTimer)
+}
+
+defineExpose({ reset })
 
 /** 検索を再実行させずにタイトルを書き換える */
 function applyTitle(title: string): void {
