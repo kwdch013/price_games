@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from app.services import steam
+from tests.upstream_probe import skip_if_unreachable
 
 pytestmark = pytest.mark.integration
 
@@ -23,14 +24,11 @@ if not os.getenv("STEAM_INTEGRATION"):
 		allow_module_level=True,
 	)
 
-# ネットワークに到達できない場合（オフライン・DNS 不能・タイムアウト）だけスキップする。
-# 4xx/5xx は URL 廃止やリクエスト仕様変更の可能性があり、これを検出することが
-# 結合テストの目的のため、スキップせず各テストで失敗させる。
-try:
-	with httpx.Client(timeout=10.0) as _c:
-		_c.get(steam.SEARCH_URL, params={"term": "portal", "l": "japanese", "cc": "jp"})
-except httpx.TransportError as exc:
-	pytest.skip(f"Steam へ接続できないためスキップ: {exc}", allow_module_level=True)
+skip_if_unreachable(
+	steam.SEARCH_URL,
+	{"term": "portal", "l": "japanese", "cc": "jp"},
+	"Steam",
+)
 
 
 def test_実検索で候補が返る() -> None:

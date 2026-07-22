@@ -2,8 +2,8 @@
 
 外部サービスに依存し CI では不安定になりうるため、既定では実行しない。
 `NINTENDO_INTEGRATION=1` を指定したときだけ実行する opt-in 方式とする
-（ローカルや専用ジョブでの実接続検証を想定）。指定時でも、接続不可・レート制限
-（4xx/5xx）などで疎通しない場合はモジュールごと自動スキップする。
+（ローカルや専用ジョブでの実接続検証を想定）。指定時でも、上流へ接続できない
+場合はモジュールごと自動スキップする。
 """
 
 import asyncio
@@ -13,6 +13,7 @@ import httpx
 import pytest
 
 from app.services import nintendo
+from tests.upstream_probe import skip_if_unreachable
 
 pytestmark = pytest.mark.integration
 
@@ -23,14 +24,11 @@ if not os.getenv("NINTENDO_INTEGRATION"):
 		allow_module_level=True,
 	)
 
-# ネットワークに到達できない場合（オフライン・DNS 不能・タイムアウト）だけスキップする。
-# 4xx/5xx は URL 廃止やリクエスト仕様変更の可能性があり、これを検出することが
-# 結合テストの目的のため、スキップせず各テストで失敗させる。
-try:
-	with httpx.Client(timeout=10.0) as _c:
-		_c.get(nintendo.SEARCH_URL, params={"q": "スプラトゥーン", "opt_sshop": 1, "limit": 1})
-except httpx.TransportError as exc:
-	pytest.skip(f"Nintendo へ接続できないためスキップ: {exc}", allow_module_level=True)
+skip_if_unreachable(
+	nintendo.SEARCH_URL,
+	{"q": "スプラトゥーン", "opt_sshop": 1, "limit": 1},
+	"Nintendo",
+)
 
 
 def test_実検索でSwitchの候補が返る() -> None:
