@@ -1,14 +1,28 @@
 // GameForm の単体テスト（api クライアントをモック）
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Game, SteamAppDetail, SteamSearchItem } from '../api/client'
+import type {
+	Game,
+	NintendoPrice,
+	NintendoSearchItem,
+	SteamAppDetail,
+	SteamSearchItem,
+} from '../api/client'
 import GameForm from './GameForm.vue'
 
-// createGame / searchSteam / fetchSteamApp をモックし、MEDIA は実物を使う
-const { createGameMock, searchSteamMock, fetchSteamAppMock } = vi.hoisted(() => ({
+// API 呼び出しをモックし、MEDIA など定数は実物を使う
+const {
+	createGameMock,
+	searchSteamMock,
+	fetchSteamAppMock,
+	searchNintendoMock,
+	fetchNintendoPriceMock,
+} = vi.hoisted(() => ({
 	createGameMock: vi.fn(),
 	searchSteamMock: vi.fn(),
 	fetchSteamAppMock: vi.fn(),
+	searchNintendoMock: vi.fn(),
+	fetchNintendoPriceMock: vi.fn(),
 }))
 vi.mock('../api/client', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('../api/client')>()
@@ -17,6 +31,8 @@ vi.mock('../api/client', async (importOriginal) => {
 		createGame: createGameMock,
 		searchSteam: searchSteamMock,
 		fetchSteamApp: fetchSteamAppMock,
+		searchNintendo: searchNintendoMock,
+		fetchNintendoPrice: fetchNintendoPriceMock,
 	}
 })
 
@@ -211,6 +227,135 @@ describe('GameForm', () => {
 
 		expect(wrapper.text()).toContain('NEW-B')
 		expect(wrapper.text()).not.toContain('OLD-A')
+	})
+
+	it('媒体が Nintendo Switch なら Nintendo を検索する', async () => {
+		vi.useFakeTimers()
+		searchNintendoMock.mockResolvedValue([
+			{
+				nsuid: '70010000046394',
+				title: 'スプラトゥーン3',
+				hardware: 'Nintendo Switch',
+				thumbnail: null,
+				price: 6500,
+			},
+		] satisfies NintendoSearchItem[])
+
+		const wrapper = mount(GameForm)
+		await wrapper.find('select').setValue('Nintendo Switch')
+		await wrapper.find('input[type="text"]').setValue('スプラ')
+		await vi.advanceTimersByTimeAsync(400)
+
+		expect(searchNintendoMock).toHaveBeenCalledWith('スプラ')
+		expect(searchSteamMock).not.toHaveBeenCalled()
+		// 機種名と価格が候補の補足に出る
+		expect(wrapper.text()).toContain('スプラトゥーン3')
+		expect(wrapper.text()).toContain('Nintendo Switch')
+	})
+
+	it('媒体を切り替えると前の媒体の候補は残らない', async () => {
+		vi.useFakeTimers()
+		searchSteamMock.mockResolvedValue([
+			{ appid: 1245620, name: 'ELDEN RING', tiny_image: null, price: 8800 },
+		] satisfies SteamSearchItem[])
+		// 切り替え後の再検索は空にして、候補が消えることだけを見る
+		searchNintendoMock.mockResolvedValue([])
+
+		const wrapper = mount(GameForm)
+		await wrapper.find('input[type="text"]').setValue('elden')
+		await vi.advanceTimersByTimeAsync(400)
+		expect(wrapper.text()).toContain('ELDEN RING')
+
+		await wrapper.find('select').setValue('Nintendo Switch')
+		await vi.advanceTimersByTimeAsync(400)
+
+		expect(wrapper.text()).not.toContain('ELDEN RING')
+	})
+
+	it('Nintendo の候補を選ぶとセール価格を現在価格へ自動入力する', async () => {
+		searchNintendoMock.mockResolvedValue([
+			{
+				nsuid: '70070000037189',
+				title: 'セール中のゲーム',
+				hardware: 'Nintendo Switch',
+				thumbnail: null,
+				price: 471,
+			},
+		] satisfies NintendoSearchItem[])
+		fetchNintendoPriceMock.mockResolvedValue({
+			nsuid: '70070000037189',
+			regular_price: 2358,
+			current_price: 471,
+			on_sale: true,
+			sale_end: '2026-07-31T14:59:59Z',
+		} satisfies NintendoPrice)
+		createGameMock.mockResolvedValue({} as Game)
+
+		// クリックリスナを付けるため実タイマーで待つ
+		const wrapper = mount(GameForm)
+		await wrapper.find('select').setValue('Nintendo Switch')
+		await wrapper.find('input[type="text"]').setValue('セール')
+		await new Promise((resolve) => setTimeout(resolve, 350))
+		await flushPromises()
+
+		await wrapper.find('.suggest-item').trigger('click')
+		await flushPromises()
+
+		expect(fetchNintendoPriceMock).toHaveBeenCalledWith('70070000037189')
+		// セール中である旨と定価が分かる
+		expect(wrapper.text()).toContain('セール中')
+
+		await wrapper.findAll('input[type="number"]')[0].setValue(6000)
+		await wrapper.find('form').trigger('submit')
+		await flushPromises()
+
+		expect(createGameMock.mock.calls[0][0]).toMatchObject({
+			title: 'セール中のゲーム',
+			medium: 'Nintendo Switch',
+			current_price: 471,
+			steam_appid: null,
+		})
+	})
+
+	it('ダウンロード版が無い候補は価格を取りに行かずタイトルだけ入る', async () => {
+		searchNintendoMock.mockResolvedValue([
+			{
+				nsuid: null,
+				title: 'ゼルダの伝説 時のオカリナ',
+				hardware: 'Nintendo Switch',
+				thumbnail: null,
+				price: null,
+			},
+		] satisfies NintendoSearchItem[])
+
+		const wrapper = mount(GameForm)
+		await wrapper.find('select').setValue('Nintendo Switch')
+		await wrapper.find('input[type="text"]').setValue('ゼルダ')
+		await new Promise((resolve) => setTimeout(resolve, 350))
+		await flushPromises()
+
+		expect(wrapper.text()).toContain('価格を取得できません')
+
+		await wrapper.find('.suggest-item').trigger('click')
+		await flushPromises()
+
+		expect(fetchNintendoPriceMock).not.toHaveBeenCalled()
+		const titleInput = wrapper.find('input[type="text"]').element as HTMLInputElement
+		expect(titleInput.value).toBe('ゼルダの伝説 時のオカリナ')
+	})
+
+	it('価格取得に対応しない媒体では検索しない', async () => {
+		vi.useFakeTimers()
+
+		const wrapper = mount(GameForm)
+		await wrapper.find('select').setValue('PS5')
+		await wrapper.find('input[type="text"]').setValue('ゴッド')
+		await vi.advanceTimersByTimeAsync(400)
+
+		expect(searchSteamMock).not.toHaveBeenCalled()
+		expect(searchNintendoMock).not.toHaveBeenCalled()
+		// 自動取得に対応していないことが分かる
+		expect(wrapper.text()).toContain('自動取得')
 	})
 
 	it('送信中はもう一度 submit しても多重送信しない', async () => {
