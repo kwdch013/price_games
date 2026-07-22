@@ -66,6 +66,19 @@ def test_価格情報が無ければNone() -> None:
 	assert steam.parse_price_jpy({}) is None
 
 
+def test_想定外の価格はNone() -> None:
+	# JSON は Infinity/NaN を含みうる。int() の OverflowError で 500 に漏らさない
+	assert steam.parse_price_jpy({"final": float("inf")}) is None
+	assert steam.parse_price_jpy({"final": float("nan")}) is None
+	# 負の価格は上流の異常なので価格不明として扱う
+	assert steam.parse_price_jpy({"final": -100}) is None
+	assert steam.parse_price_jpy({"final": "924000"}) == 9240
+	assert steam.parse_price_jpy({"final": "不正"}) is None
+	assert steam.parse_price_jpy({"final": [924000]}) is None
+	assert steam.parse_price_jpy({"final": True}) is None
+	assert steam.parse_price_jpy(["想定外"]) is None
+
+
 def test_検索候補を正規化する() -> None:
 	items = steam.normalize_search(_SEARCH_RAW)
 	assert len(items) == 2
@@ -104,6 +117,49 @@ def test_価格未設定の詳細はcurrent_priceがNone() -> None:
 	assert detail is not None
 	assert detail.current_price is None
 	assert detail.genres == []
+
+
+def test_想定外の形の応答でも壊れない() -> None:
+	# 上流の仕様変更で型が変わっても例外にせず「該当なし」として扱う
+	assert steam.normalize_search({"items": {"id": 1}}) == []
+	assert steam.normalize_search({"items": ["文字列"]}) == []
+	assert steam.normalize_search({"items": [{"id": "不正", "name": "ゲーム"}]}) == []
+	assert steam.normalize_detail({"440": "文字列"}, 440) is None
+	assert steam.normalize_detail({"440": {"success": True, "data": "文字列"}}, 440) is None
+
+	raw = {
+		"440": {
+			"success": True,
+			"data": {
+				"steam_appid": 440,
+				"name": "Team Fortress 2",
+				"genres": {"description": "アクション"},
+				"release_date": "文字列",
+			},
+		}
+	}
+	detail = steam.normalize_detail(raw, 440)
+	assert detail is not None
+	assert detail.genres == []
+	assert detail.release_date is None
+
+
+def test_successがtruthyな非boolなら該当なし() -> None:
+	# 文字列 "false" や 1 を成功と誤認すると、不正な応答から詳細を作ってしまう
+	for success in ("false", 1, ["ok"]):
+		raw = {"440": {"success": success, "data": {"steam_appid": 440, "name": "TF2"}}}
+		assert steam.normalize_detail(raw, 440) is None
+
+
+def test_appidが数値化できなくても壊れない() -> None:
+	# int() が OverflowError を投げる値でも 500 に漏らさない
+	assert steam.normalize_search({"items": [{"id": float("inf"), "name": "ゲーム"}]}) == []
+
+	raw = {"440": {"success": True, "data": {"steam_appid": float("inf"), "name": "TF2"}}}
+	detail = steam.normalize_detail(raw, 440)
+	assert detail is not None
+	# 上流の値が使えない場合は問い合わせた appid にフォールバックする
+	assert detail.appid == 440
 
 
 # ---- HTTP 呼び出し（MockTransport） ------------------------------------------
@@ -208,4 +264,27 @@ def test_Steam側エラーは502() -> None:
 	gen = _override_with(httpx.MockTransport(handler))
 	client = next(gen)
 	assert client.get("/steam/search", params={"q": "x"}).status_code == 502
+	next(gen, None)  # teardown
+
+
+def test_JSONでない応答も502() -> None:
+	# 上流がエラーページ（HTTP 200 + HTML）を返すことがあるため 500 にしない
+	def handler(request: httpx.Request) -> httpx.Response:
+		return httpx.Response(200, text="<html>error</html>")
+
+	gen = _override_with(httpx.MockTransport(handler))
+	client = next(gen)
+	assert client.get("/steam/search", params={"q": "x"}).status_code == 502
+	assert client.get("/steam/apps/440").status_code == 502
+	next(gen, None)  # teardown
+
+
+def test_JSONだが想定外の形なら502() -> None:
+	def handler(request: httpx.Request) -> httpx.Response:
+		return httpx.Response(200, json=["想定外"])
+
+	gen = _override_with(httpx.MockTransport(handler))
+	client = next(gen)
+	assert client.get("/steam/search", params={"q": "x"}).status_code == 502
+	assert client.get("/steam/apps/440").status_code == 502
 	next(gen, None)  # teardown

@@ -16,15 +16,7 @@ from decimal import Decimal, InvalidOperation
 import httpx
 
 from app.schemas import NintendoPrice, NintendoSearchItem
-
-
-class UpstreamResponseError(Exception):
-	"""上流の応答が想定外（JSON でない・型が違う）であることを表す。
-
-	上流はエラー時でも HTTP 200 で HTML を返すことがあるため、
-	`raise_for_status()` だけでは検出できない。ルーター側で 502 に変換する。
-	"""
-
+from app.services.upstream import parse_json_object
 
 SEARCH_URL = "https://search.nintendo.jp/nintendo_soft/search.json"
 PRICE_URL = "https://api.ec.nintendo.com/v1/price"
@@ -72,17 +64,6 @@ def parse_price_yen(value: object) -> int | None:
 	if not amount.is_finite() or amount < 0 or amount != amount.to_integral_value():
 		return None
 	return int(amount)
-
-
-def parse_json_object(resp: httpx.Response) -> dict:
-	"""応答を JSON オブジェクトとして読む。想定外なら UpstreamResponseError"""
-	try:
-		data = resp.json()
-	except ValueError as exc:  # JSON でない（HTML のエラーページなど）
-		raise UpstreamResponseError("応答が JSON ではありません") from exc
-	if not isinstance(data, dict):
-		raise UpstreamResponseError("応答の形式が想定と異なります")
-	return data
 
 
 def normalize_search(raw: dict) -> list[NintendoSearchItem]:

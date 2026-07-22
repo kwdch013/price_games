@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 
 from app.schemas import NintendoPrice, NintendoSearchItem
 from app.services import nintendo
+from app.services.upstream import UpstreamResponseError
 
 router = APIRouter(prefix="/nintendo", tags=["nintendo"])
 
@@ -28,7 +29,7 @@ async def search(
 	try:
 		return await nintendo.search_games(q, client)
 	# 上流の障害・タイムアウトに加え、HTTP 200 で返る想定外の応答も 502 にする
-	except (httpx.HTTPError, nintendo.UpstreamResponseError) as exc:
+	except (httpx.HTTPError, UpstreamResponseError) as exc:
 		raise HTTPException(
 			status_code=status.HTTP_502_BAD_GATEWAY, detail="Nintendo へ接続できません"
 		) from exc
@@ -43,7 +44,7 @@ async def price(
 	"""nsuid から現在価格（セール中はセール価格）を取得する"""
 	try:
 		found = await nintendo.get_price(nsuid, client)
-	except (httpx.HTTPError, nintendo.UpstreamResponseError) as exc:
+	except (httpx.HTTPError, UpstreamResponseError) as exc:
 		raise HTTPException(
 			status_code=status.HTTP_502_BAD_GATEWAY, detail="Nintendo へ接続できません"
 		) from exc

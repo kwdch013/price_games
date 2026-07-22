@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.schemas import SteamAppDetail, SteamSearchItem
 from app.services import steam
+from app.services.upstream import UpstreamResponseError
 
 router = APIRouter(prefix="/steam", tags=["steam"])
 
@@ -27,7 +28,7 @@ async def search(
 	"""タイトルから候補を検索する"""
 	try:
 		return await steam.search_games(q, client)
-	except httpx.HTTPError as exc:  # 上流（Steam）の障害・タイムアウト
+	except (httpx.HTTPError, UpstreamResponseError) as exc:
 		raise HTTPException(
 			status_code=status.HTTP_502_BAD_GATEWAY, detail="Steam へ接続できません"
 		) from exc
@@ -40,7 +41,7 @@ async def app_detail(
 	"""appid から発売日・現在価格・画像などの詳細を取得する"""
 	try:
 		detail = await steam.get_app_detail(appid, client)
-	except httpx.HTTPError as exc:
+	except (httpx.HTTPError, UpstreamResponseError) as exc:
 		raise HTTPException(
 			status_code=status.HTTP_502_BAD_GATEWAY, detail="Steam へ接続できません"
 		) from exc
