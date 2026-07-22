@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.cors import cors_options
 from app.db import init_db
 from app.routers import games, steam
 
@@ -21,13 +22,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="price_games", version="0.1.0", lifespan=lifespan)
 
-# 開発時は Vite dev server（別ポート）からアクセスするため CORS を許可する
-app.add_middleware(
-	CORSMiddleware,
-	allow_origins=["http://localhost:5173"],
-	allow_methods=["*"],
-	allow_headers=["*"],
-)
+# Vite dev server（別ポート）や LAN 内の別マシンからアクセスするため CORS を許可する
+app.add_middleware(CORSMiddleware, **cors_options())
 
 app.include_router(games.router)
 app.include_router(steam.router)

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
 	createGame,
 	deleteGame,
+	fetchHealth,
 	fetchSteamApp,
 	fetchSummary,
 	formatYen,
@@ -16,6 +17,22 @@ afterEach(() => {
 function mockFetch(res: Partial<Response>): void {
 	vi.stubGlobal('fetch', vi.fn().mockResolvedValue(res))
 }
+
+describe('API ベース URL', () => {
+	// ホスト名を含む絶対 URL（例: http://localhost:8010）を既定にすると、
+	// LAN 内の別マシンのブラウザから開いたときにそのマシン自身を指してしまう。
+	// 既定は同一オリジンの相対パスにして、dev server のプロキシ経由で API へ届ける。
+	it('既定は同一オリジンの相対パス /api', async () => {
+		const f = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ status: 'ok' }),
+		})
+		vi.stubGlobal('fetch', f)
+		await fetchHealth()
+		expect(f.mock.calls[0][0]).toBe('/api/health')
+	})
+})
 
 describe('request（共通処理）', () => {
 	it('非2xx は例外を投げる', async () => {

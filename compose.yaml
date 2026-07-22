@@ -27,8 +27,11 @@ services:
     ports:
       - "5173:5173"
     environment:
-      # ブラウザ（ホスト）から API へは 8010 でアクセスする
-      - VITE_API_BASE=http://localhost:8010
+      # dev server が /api を中継する先（compose ネットワーク内の API サービス）。
+      # ブラウザは同一オリジンの /api を叩くため、LAN 内の別マシンからでも到達できる。
+      - VITE_PROXY_TARGET=http://api:8000
+    depends_on:
+      - api
     # 初回は依存を入れてから dev server を起動する
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
 
