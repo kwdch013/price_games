@@ -23,14 +23,13 @@ if not os.getenv("NINTENDO_INTEGRATION"):
 		allow_module_level=True,
 	)
 
-# 実接続を試み、疎通しなければ（接続不可・4xx/5xx）モジュールごとスキップする
+# ネットワークに到達できない場合（オフライン・DNS 不能・タイムアウト）だけスキップする。
+# 4xx/5xx は URL 廃止やリクエスト仕様変更の可能性があり、これを検出することが
+# 結合テストの目的のため、スキップせず各テストで失敗させる。
 try:
 	with httpx.Client(timeout=10.0) as _c:
-		_resp = _c.get(
-			nintendo.SEARCH_URL, params={"q": "スプラトゥーン", "opt_sshop": 1, "limit": 1}
-		)
-		_resp.raise_for_status()
-except httpx.HTTPError as exc:
+		_c.get(nintendo.SEARCH_URL, params={"q": "スプラトゥーン", "opt_sshop": 1, "limit": 1})
+except httpx.TransportError as exc:
 	pytest.skip(f"Nintendo へ接続できないためスキップ: {exc}", allow_module_level=True)
 
 

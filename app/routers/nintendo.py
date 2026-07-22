@@ -27,7 +27,8 @@ async def search(
 	"""タイトルから Switch 系の候補を検索する"""
 	try:
 		return await nintendo.search_games(q, client)
-	except httpx.HTTPError as exc:  # 上流（Nintendo）の障害・タイムアウト
+	# 上流の障害・タイムアウトに加え、HTTP 200 で返る想定外の応答も 502 にする
+	except (httpx.HTTPError, nintendo.UpstreamResponseError) as exc:
 		raise HTTPException(
 			status_code=status.HTTP_502_BAD_GATEWAY, detail="Nintendo へ接続できません"
 		) from exc
@@ -42,12 +43,10 @@ async def price(
 	"""nsuid から現在価格（セール中はセール価格）を取得する"""
 	try:
 		found = await nintendo.get_price(nsuid, client)
-	except httpx.HTTPError as exc:
+	except (httpx.HTTPError, nintendo.UpstreamResponseError) as exc:
 		raise HTTPException(
 			status_code=status.HTTP_502_BAD_GATEWAY, detail="Nintendo へ接続できません"
 		) from exc
 	if found is None:
-		raise HTTPException(
-			status_code=status.HTTP_404_NOT_FOUND, detail="商品が見つかりません"
-		)
+		raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="商品が見つかりません")
 	return found

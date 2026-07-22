@@ -117,6 +117,25 @@ def test_サムネイルが無ければNone() -> None:
 	assert nintendo.build_thumbnail("") is None
 
 
+def test_価格は整数へ変換される() -> None:
+	assert nintendo.parse_price_yen(6500.0) == 6500
+	assert nintendo.parse_price_yen("6500") == 6500
+	assert nintendo.parse_price_yen(6500) == 6500
+
+
+def test_価格として扱えない値はNone() -> None:
+	# 円に小数は無い。異常値を黙って切り捨てず捨てる
+	assert nintendo.parse_price_yen(6500.5) is None
+	assert nintendo.parse_price_yen(-1) is None
+	assert nintendo.parse_price_yen("abc") is None
+	assert nintendo.parse_price_yen(None) is None
+	assert nintendo.parse_price_yen(True) is None
+	# 指数表記・無限大でも例外にせず None にする
+	assert nintendo.parse_price_yen("Infinity") is None
+	assert nintendo.parse_price_yen(float("inf")) is None
+	assert nintendo.parse_price_yen(float("nan")) is None
+
+
 def test_検索候補はSwitch系のみに絞る() -> None:
 	items = nintendo.normalize_search(_SEARCH_RAW)
 	# amiibo（9_amiibo）と 3DS（2_CTR）は除外される
@@ -179,6 +198,22 @@ def test_価格が空の応答はNone() -> None:
 def test_問い合わせたnsuid以外の価格は採用しない() -> None:
 	# 別 ID の結果しか含まない応答を取り違えない
 	assert nintendo.normalize_price(_PRICE_REGULAR_RAW, "70010000099999") is None
+
+
+def test_想定外の形の応答でも壊れない() -> None:
+	# 上流の仕様変更で型が変わっても例外にせず「該当なし」として扱う
+	assert nintendo.normalize_search({"result": {"items": "文字列"}}) == []
+	assert nintendo.normalize_search({"result": []}) == []
+	assert nintendo.normalize_search({"result": {"items": ["文字列"]}}) == []
+	assert nintendo.normalize_price({"prices": "文字列"}, "70010000046394") is None
+	assert nintendo.normalize_price({"prices": ["文字列"]}, "70010000046394") is None
+	assert (
+		nintendo.normalize_price(
+			{"prices": [{"title_id": 70010000046394, "regular_price": "文字列"}]},
+			"70010000046394",
+		)
+		is None
+	)
 
 
 # ---- HTTP 呼び出し（MockTransport） ------------------------------------------
@@ -285,6 +320,27 @@ def test_nsuidが数字以外なら422(price_client: TestClient) -> None:
 def test_上流障害は502() -> None:
 	def handler(request: httpx.Request) -> httpx.Response:
 		raise httpx.ConnectError("接続できません")
+
+	gen = _override_with(httpx.MockTransport(handler))
+	client = next(gen)
+	assert client.get("/nintendo/search", params={"q": "x"}).status_code == 502
+	assert client.get("/nintendo/price/70010000046394").status_code == 502
+
+
+def test_JSONでない応答も502() -> None:
+	# 上流がエラーページ（HTTP 200 + HTML）を返すことがあるため 500 にしない
+	def handler(request: httpx.Request) -> httpx.Response:
+		return httpx.Response(200, text="<html>error</html>")
+
+	gen = _override_with(httpx.MockTransport(handler))
+	client = next(gen)
+	assert client.get("/nintendo/search", params={"q": "x"}).status_code == 502
+	assert client.get("/nintendo/price/70010000046394").status_code == 502
+
+
+def test_JSONだが想定外の形なら502() -> None:
+	def handler(request: httpx.Request) -> httpx.Response:
+		return httpx.Response(200, json=["想定外"])
 
 	gen = _override_with(httpx.MockTransport(handler))
 	client = next(gen)
