@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint
+from sqlalchemy import CheckConstraint, Column, DateTime, func
 from sqlmodel import Field, SQLModel
 
 
@@ -37,7 +37,14 @@ class Game(SQLModel, table=True):
 	note: str = Field(default="")
 	# Steam 連携用（後の Issue で使用）
 	steam_appid: int | None = Field(default=None)
-	created_at: datetime = Field(default_factory=_now)
+	created_at: datetime = Field(
+		default_factory=_now,
+		sa_column=Column(
+			DateTime(timezone=True),
+			nullable=False,
+			server_default=func.now(),
+		),
+	)
 
 
 class PriceHistory(SQLModel, table=True):
@@ -54,4 +61,11 @@ class PriceHistory(SQLModel, table=True):
 	# 親 game 削除時は履歴も CASCADE で消す（DB 側で整合を保つ）
 	game_id: int = Field(foreign_key="game.id", ondelete="CASCADE", index=True)
 	price: int
-	captured_at: datetime = Field(default_factory=_now)
+	captured_at: datetime = Field(
+		default_factory=_now,
+		sa_column=Column(
+			DateTime(timezone=True),
+			nullable=False,
+			server_default=func.now(),
+		),
+	)
