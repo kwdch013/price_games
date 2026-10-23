@@ -35,7 +35,7 @@
 ## 開発
 ```bash
 cp .env.example .env        # DATABASE_URL を設定（共有 Postgres の price_games ロール）
-docker compose up           # API 起動(http://localhost:8010）
+docker compose up           # API 起動(http://localhost:8010）、フロント(http://localhost:5173)
 docker compose run --rm api pytest   # テスト
 ```
 
@@ -50,8 +50,8 @@ opt-in で有効化した後の自動スキップは、**上流へ接続でき�
 (判定は `tests/upstream_probe.py` に集約)。4xx/5xx・`ReadTimeout`・不正な HTTP 応答は URL 廃止や
 リクエスト仕様の変更を示すため、スキップせず失敗させる(スキップ＝成功扱いを避ける)。
 
-- API のホストポートは **8010**(8000 は既存の別アプリが使用中のため)
-- フロント(Vite dev server)のホストポートは **5173**
+- API のホストポートは `.env` の `API_HTTP_PORT`（既定 **8010**。8000 は既存の別アプリが使用中のため）
+- フロント(Vite dev server)のホストポートは `.env` の `FRONTEND_WEB_PORT`（既定 **5173**）
 - DB は共有 Postgres の `price_games` データベース/ロールを使用(接続は `database_default` ネットワーク経由)
 
 ### 別マシン(LAN)からアクセスする
